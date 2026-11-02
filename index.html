@@ -155,15 +155,14 @@ textarea{resize:vertical;min-height:64px;line-height:1.4}
         </label>
         <label class="f">Birthday date<input type="date" id="date"></label>
         <div class="row2">
-          <label class="f">Group / element
-            <select id="group">
-              <option value="">None</option>
-              <option value="grup-1">Grup / Group 1</option><option value="grup-2">Grup / Group 2</option>
-              <option value="grup-3">Grup / Group 3</option><option value="grup-4">Grup / Group 4</option>
-              <option value="elemen-1">Elemen / Element 1</option><option value="elemen-2">Elemen / Element 2</option>
-              <option value="elemen-3">Elemen / Element 3</option><option value="elemen-4">Elemen / Element 4</option>
-            </select>
+          <label class="f">Grup / Group
+            <select id="grp"><option value="">None</option><option value="1">Grup 1</option><option value="2">Grup 2</option><option value="3">Grup 3</option><option value="4">Grup 4</option></select>
           </label>
+          <label class="f">Elemen / Element
+            <select id="elm"><option value="">None</option><option value="1">Elemen 1</option><option value="2">Elemen 2</option><option value="3">Elemen 3</option><option value="4">Elemen 4</option></select>
+          </label>
+        </div>
+        <div class="row2">
           <label class="f">Language
             <select id="lang"><option value="id">Bahasa Indonesia</option><option value="en">English</option></select>
           </label>
@@ -245,7 +244,7 @@ const DEFAULTS = {
   lang: "en",
   msg: "Happy birthday! Wishing you a wonderful day and a year filled with everything you love.",
   footer: "BERANI · CEPAT · TERHORMAT",
-  vig: 0.7, len: 12, depth: true, group: "", sfx: true, music: true, vol: 0.8
+  vig: 0.7, len: 12, depth: true, grp: "", elm: "", sfx: true, music: true, vol: 0.8
 };
 const S = Object.assign({}, DEFAULTS, { zoom:1, ox:0, oy:0 });
 try { const saved = JSON.parse(localStorage.getItem("p3md-bday-2") || "null"); if (saved) Object.assign(S, saved); } catch (e) {}
@@ -337,7 +336,7 @@ const TPLS = {
       { k:"concave_star", x:110, y:1110,s:6,  t:.7,  bob:12, ph:3.1, pulse:.12 },
     ],
     marquee:true, ticker:true, masthead:true,
-    sparkSpots:[[200,700],[880,640],[90,1240],[990,1250],[60,1580],[1010,1590]],
+    sparkSpots:[[200,700],[880,640],[90,1180],[990,1160],[1010,1640],[40,1660]],
   },
   tenun: {
     name: "Tenun",
@@ -887,9 +886,10 @@ function drawTopText(t, c0){
 
 /* ---------- name, date, subtitle ---------- */
 function groupLabel(){
-  const m = /^(grup|elemen)-(\d)$/.exec(S.group || ""); if (!m) return "";
-  const word = m[1] === "grup" ? (S.lang === "id" ? "GRUP" : "GROUP") : (S.lang === "id" ? "ELEMEN" : "ELEMENT");
-  return `${word} ${m[2]}`;
+  const id = S.lang === "id", parts = [];
+  if (S.grp) parts.push(`${id ? "GRUP" : "GROUP"} ${S.grp}`);
+  if (S.elm) parts.push(`${id ? "ELEMEN" : "ELEMENT"} ${S.elm}`);
+  return parts.join(" / ");
 }
 function drawInfo(t, c0){
   const P = tpl(), lab = P.labels[S.lang] || P.labels.en, top = P.infoTop;
@@ -1362,7 +1362,7 @@ const bind = (id, key, fn = v => v, after) => {
   const el = $(id); el.value = S[key];
   el.addEventListener("input", () => { S[key] = fn(el.value); persist(); if (after) after(); redraw(); });
 };
-bind("name","name"); bind("date","date"); bind("lang","lang"); bind("msg","msg", v=>v, updCount); bind("footer","footer"); bind("group","group");
+bind("name","name"); bind("date","date"); bind("lang","lang"); bind("msg","msg", v=>v, updCount); bind("footer","footer"); bind("grp","grp"); bind("elm","elm");
 bind("vig","vig", Number, () => { $("vigV").textContent = Math.round(S.vig*100)+"%"; buildVignette(); });
 bind("len","len", Number, () => { T = S.len; scrub.max = T; $("lenTag").textContent = `${T} S · 30 FPS`; });
 let rbTimer = 0;
