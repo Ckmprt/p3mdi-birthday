@@ -210,6 +210,7 @@ textarea{resize:vertical;min-height:64px;line-height:1.4}
         <div class="bar" aria-hidden="true"><i id="bar"></i></div>
         <p class="status" id="renderStatus">Rendering plays the video once in real time. Keep this tab open and visible until it finishes. Works best in Chrome or Edge on a computer.</p>
         <div id="result" hidden><button class="primary" id="saveBtn" type="button">Save video</button></div>
+        <label class="check"><input type="checkbox" id="coverOn" checked> Open the video on the finished picture, so it becomes the thumbnail</label>
         <button id="pngBtn" type="button">Save still image (PNG)</button>
         <p class="hint">The PNG is the finished last frame, 1080 × 1920, good for a feed post or a printout.</p>
       </div>
@@ -244,7 +245,7 @@ const DEFAULTS = {
   lang: "en",
   msg: "Happy birthday! Wishing you a wonderful day and a year filled with everything you love.",
   footer: "BERANI · CEPAT · TERHORMAT",
-  vig: 0.7, len: 12, depth: true, grp: "", elm: "", sfx: true, music: true, vol: 0.8
+  vig: 0.7, len: 12, depth: true, grp: "", elm: "", sfx: true, music: true, vol: 0.8, cover: true
 };
 const S = Object.assign({}, DEFAULTS, { zoom:1, ox:0, oy:0 });
 try { const saved = JSON.parse(localStorage.getItem("p3md-bday-2") || "null"); if (saved) Object.assign(S, saved); } catch (e) {}
@@ -1351,6 +1352,8 @@ function loop(now){
 playBtn.onclick = () => setPlaying(!playing);
 $("restartBtn").onclick = () => { curT = 0; draw(0); setPlaying(true); };
 $("sfxOn").checked = S.sfx !== false; $("musicOn").checked = S.music !== false; $("vol").value = S.vol ?? .8; $("volV").textContent = Math.round((S.vol ?? .8)*100) + "%";
+$("coverOn").checked = S.cover !== false;
+$("coverOn").onchange = () => { S.cover = $("coverOn").checked; persist(); };
 $("sfxOn").onchange = () => { S.sfx = $("sfxOn").checked; persist(); };
 $("musicOn").onchange = () => { S.music = $("musicOn").checked; persist(); };
 $("vol").oninput = () => { S.vol = +$("vol").value; $("volV").textContent = Math.round(S.vol*100) + "%"; if (SFX.master) SFX.master.gain.value = S.vol; persist(); };
@@ -1533,11 +1536,37 @@ $("renderBtn").onclick = async () => {
   const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 16_000_000 });
   const chunks = []; rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   const stopped = new Promise(r => rec.onstop = r);
-  draw(0); rec.start(500);
+  // thumbnail: the video opens on the finished picture, then pixel-dissolves into the intro
+  const COVER = S.cover !== false ? .6 : 0, HOLD = .42;
+  let coverImg = null;
+  if (COVER){ draw(T); coverImg = mk(W, H); coverImg.getContext("2d").drawImage(cv, 0, 0); }
+  const small = mk(W, H), sx2 = small.getContext("2d");
+  const drawCover = t => {
+    ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha = 1;
+    if (t < HOLD){ ctx.drawImage(coverImg, 0, 0); return; }
+    const p = clamp((t - HOLD)/(COVER - HOLD)), blk = Math.round(4 + easeOut(p)*70);
+    const w = Math.max(2, Math.round(W/blk)), h = Math.max(2, Math.round(H/blk));
+    sx2.clearRect(0, 0, W, H); sx2.drawImage(coverImg, 0, 0, w, h);
+    ctx.imageSmoothingEnabled = false; ctx.drawImage(small, 0, 0, w, h, 0, 0, W, H); ctx.imageSmoothingEnabled = true;
+    ctx.fillStyle = `rgba(11,16,41,${p})`; ctx.fillRect(0, 0, W, H);
+  };
+  if (COVER) drawCover(0); else draw(0);
+  rec.start(500);
   const t0 = performance.now();
   await new Promise(res => {
-    let prevT = -.001;
-    const f = () => { const t = (performance.now() - t0)/1000; fireSfx(prevT, Math.min(t, T)); prevT = Math.min(t, T); draw(Math.min(t, T)); bar.style.width = (clamp(t/T)*100) + "%"; if (t < T + .15) requestAnimationFrame(f); else res(); };
+    let prevT = -.001, whooshed = false;
+    const f = () => {
+      const tr = (performance.now() - t0)/1000, total = T + COVER;
+      if (tr < COVER){
+        drawCover(tr);
+        if (!whooshed && tr >= HOLD && SFX.ctx && SFX.ctx.state === "running" && S.sfx){ whooshed = true; try { SOUND.whoosh(); } catch (e) {} }
+      } else {
+        const t = Math.min(tr - COVER, T);
+        fireSfx(prevT, t); prevT = t; draw(t);
+      }
+      bar.style.width = (clamp(tr/total)*100) + "%";
+      if (tr < total + .15) requestAnimationFrame(f); else res();
+    };
     requestAnimationFrame(f);
   });
   rec.stop(); await stopped; stream.getVideoTracks().forEach(tr => tr.stop());
